@@ -3236,7 +3236,7 @@ async function main() {
     assert.ok(calls >= 2, '判定器抛错时按可重试兜底，应至少尝试 2 次')
   })
 
-  await t('util.mergeSignals: 任一信号触发即中断（旧版 Node 无 AbortSignal.any 时的等价物）', async () => {
+  await t('util.mergeSignals: 任一信号触发即中断（原生 AbortSignal.any）', async () => {
     const a = new AbortController()
     const b = new AbortController()
     const s = svc.utilMergeSignalsForTest || require('../src/service/util').mergeSignals
@@ -3633,62 +3633,6 @@ async function main() {
     } finally {
       svc.download.downloadMany = origMany
       await until(() => !svc.job.jobQueue.active && svc.job.jobQueue.pending === 0, 8000)
-    }
-  })
-
-  await t('util: mergeSignals 退化分支不得在同一个 signal 上累积监听器', async () => {
-    // 决策 75。mergeSignals 在两条管线里是每首调用的；退化分支（Node 18.0~18.16，
-    // 无 AbortSignal.any）会在同一个任务级 signal 上每首挂 2 个监听器且从不摘除——
-    // 第 11 首起 MaxListenersExceededWarning，且只要任务还在 50 条 jobs 表里就一直可达。
-    // 这里强制走退化分支来验证（当前 Node 有原生 any，故临时摘掉）
-    const realAny = AbortSignal.any
-    try {
-      AbortSignal.any = undefined
-      delete require.cache[require.resolve('../src/service/util')]
-      const fresh = require('../src/service/util')
-      const job = new AbortController()
-      const merged = []
-      for (let i = 0; i < 50; i++) merged.push(fresh.mergeSignals(job.signal, AbortSignal.timeout(60000)))
-      // Node 的默认上限是 10；50 首（=100 个监听器）必然触发告警
-      const before = process.getMaxListeners()
-      process.setMaxListeners(0)
-      process.setMaxListeners(before)
-      let warned = false
-      const onWarn = (w) => { if (/MaxListeners/.test(w && w.name || '')) warned = true }
-      process.on('warning', onWarn)
-      await new Promise((r) => setTimeout(r, 30))
-      process.off('warning', onWarn)
-      assert.strictEqual(warned, false, '退化分支下 50 次合并不得触发 MaxListeners 告警（监听器泄漏）')
-      // 中止后上游必须真的摘干净
-      merged.forEach((m) => m.removeEventListener('abort', () => {}))
-      job.abort()
-      await new Promise((r) => setTimeout(r, 30))
-      assert.strictEqual(merged[0].aborted, true, '合并信号必须跟随上游中止')
-    } finally {
-      AbortSignal.any = realAny
-      delete require.cache[require.resolve('../src/service/util')]
-    }
-  })
-
-  await t('util: mergeSignals 退化分支在上游 abort 后真正摘除监听器', async () => {
-    const realAny = AbortSignal.any
-    try {
-      AbortSignal.any = undefined
-      delete require.cache[require.resolve('../src/service/util')]
-      const fresh = require('../src/service/util')
-      const job = new AbortController()
-      const merged = []
-      for (let i = 0; i < 60; i++) merged.push(fresh.mergeSignals(job.signal, AbortSignal.timeout(60000)))
-      job.abort()
-      await new Promise((r) => setTimeout(r, 20))
-      assert.strictEqual(merged[0].aborted, true)
-      // 监听器摘除后再合并一批，新的合并不得受上一次的残留影响
-      assert.strictEqual(merged[59].aborted, true, '所有合并信号都应已中止')
-      const fresh2 = fresh.mergeSignals(new AbortController().signal, AbortSignal.timeout(60000))
-      assert.strictEqual(fresh2.aborted, false, '新合并不得被已中止的上游污染')
-    } finally {
-      AbortSignal.any = realAny
-      delete require.cache[require.resolve('../src/service/util')]
     }
   })
 

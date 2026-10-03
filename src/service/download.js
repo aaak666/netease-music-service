@@ -52,7 +52,7 @@ function fsSink(dir) {
       try {
         await core.retry.withRetry(
           async () => {
-            // 取消信号与超时合并（与手机管线同口径）：util.mergeSignals 全版本一致，
+            // 取消信号与超时合并（与手机管线同口径，原生 AbortSignal.any）：
             // AbortError 不进重试（isTransient 排除），取消不会引发多余的一次重试请求
             const timeoutSignal = AbortSignal.timeout(DOWNLOAD_TIMEOUT)
             const streamSignal = mergeSignals(signal, timeoutSignal)

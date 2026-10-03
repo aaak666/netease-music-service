@@ -37,39 +37,15 @@ function createLruCache(fetcher, limit = 40) {
 
 /**
  * 合并两个 AbortSignal（任务取消 + 分步超时），任一触发即中断。
- * AbortSignal.any 要 Node 20.3/18.17 才有，package.json 声明 >=18，即 18.0~18.16 上原实现会
- * 走 `AbortSignal.any ? ... : timeoutSignal` 的退化分支——**任务取消信号被整个丢掉**，
- * 只剩 10 分钟超时生效：用户点了取消，接口立刻回 ok，传输却继续跑满，
- * 表现为"点了没反应"且日志一行不出（决策 27 承诺的"当前歌曲即时断流"失效）。
- * 这里手写等价物，全版本行为一致。
+ * 直接用原生 AbortSignal.any（Node ≥20.3，engines 已声明）。曾为 Node 18.0~18.16 手写等价
+ * 退化分支——任务级 signal 每首合并一次，手写版要自己管监听器摘除，漏一次就是每首累积 2 个
+ * 监听器的泄漏（决策 75 修过一轮，最终连分支一起删）：为一个本项目从不运行的环境付永久维护税，
+ * 不值当（决策 99 的取舍标尺）。空侧透传保留：单曲 download() 的 signal 可以不传。
  */
 function mergeSignals(a, b) {
   if (!a) return b
   if (!b) return a
-  if (typeof AbortSignal.any === 'function') return AbortSignal.any([a, b])
-  const c = new AbortController()
-  const onAbort = (e) => {
-    try { c.abort(e && e.target ? e.target.reason : undefined) } catch { /* 已中断则无事 */ }
-  }
-  const added = []
-  for (const s of [a, b]) {
-    if (s.aborted) { onAbort({ target: s }); return c.signal }
-    s.addEventListener('abort', onAbort, { once: true })
-    added.push(s)
-  }
-  // 监听器必须摘掉：mergeSignals 在两条管线里是**每首**调用的，退化分支下 Node 18.0~18.16
-  // 会在同一个任务级 signal 上挂 2×N 个监听器永不移除——第 11 首起 MaxListeners 告警，
-  // 且只要任务还在 50 条 jobs 表里就一直可达。原生 AbortSignal.any 自行管理，无需此段
-  const prune = () => {
-    for (const s of added) {
-      try { s.removeEventListener('abort', onAbort) } catch { /* 已销毁的 signal */ }
-    }
-    added.length = 0
-  }
-  // 只有真正 abort 时才摘：signal 正常走完（超时/正常结束）时上游不会触发事件，
-  // 监听器会留到 signal 被 GC——用 AbortSignal.timeout 的组合就属于这种常态路径
-  c.signal.addEventListener('abort', prune, { once: true })
-  return c.signal
+  return AbortSignal.any([a, b])
 }
 
 /**

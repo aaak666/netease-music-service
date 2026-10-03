@@ -124,7 +124,7 @@ function startJob(label, songs, opts) {
     /** 统一终态收口：清 current、汇总、落批次报告、写状态与日志（成功/取消/失败共用一条路径） */
     const finish = (status, err) => {
       job.current = null // 终态必须清：否则已完成的卡片还显示"进行中 N/M · 当前: <上一首>"
-      job.handle = null // 释放 AbortController 与挂在它上面的取消监听（退化的 mergeSignals 不会自动摘）
+      job.handle = null // 释放 AbortController（合并信号由原生 AbortSignal.any 自管监听器，无需手摘）
       // opts 可能为 undefined（startJob 是公开导出，允许 startJob(label, songs) 这种最简调用）。
       // finish 会在 catch 里被调用，此处若裸解引用就会二次抛错——而它抛在 catch 里没人接，
       // 任务会永远停在 running（进不了驱逐列表、还会被 findDup 按 batchKey 认领）

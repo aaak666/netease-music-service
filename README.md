@@ -61,7 +61,7 @@ tools/phone-fill.js    手机歌单补齐应急 CLI：直连设备对账补缺�
 
 ## 环境要求
 
-- Node ≥ 18（使用全局 fetch / AbortSignal.timeout）
+- Node ≥ 20.3（使用全局 fetch / AbortSignal.any）
 - cookie 存放在 `cookie.txt`（已 gitignore），也可用环境变量 `NCM_COOKIE` / `MUSIC_U`
 
 ## HTTP API 摘要

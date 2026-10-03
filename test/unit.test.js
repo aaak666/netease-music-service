@@ -1,5 +1,7 @@
 /**
  * 底层纯函数单测（无网络，毫秒级）：node test/unit.test.js
+ * 默认文件系统=内存（memfs）：全程零真实磁盘写入（高频迭代不磨损 SSD）；
+ * 需要验证真实文件系统行为时跑 node test/unit.test.js --io（写真实临时目录，退出即清）。
  */
 const assert = require('assert')
 const fs = require('fs')
@@ -53,6 +55,19 @@ function spawnSyncGuard(cmd, args, opts) {
   return spawnSyncOriginal(cmd, args, opts)
 }
 childProcess.spawnSync = spawnSyncGuard
+
+// 2c) 内存文件系统：默认把整个 fs 派发到 memfs——写入全部进内存，读内存里没有的文件
+//     自动回退真实磁盘（unionfs 串联，memfs 优先）。这样 161 条用例与断言原样不动，
+//     变化的只是它们脚下这层"盘"：日常高频测试零真实磁盘写入，不磨损 SSD。
+//     patchFs 原地替换核心 fs 模块对象，必须发生在任何 src 模块加载之前（与 execFile
+//     桩同理——模块加载时捕获的 fs 引用也要拿到补丁后的对象）。
+//     加 --io 参数跳过本补丁：真实落盘全流程验证（结束照样清场）。
+if (!process.argv.includes('--io')) {
+  const { vol } = require('memfs')
+  const { ufs } = require('unionfs')
+  const { patchFs } = require('fs-monkey')
+  patchFs(fs, ufs.use(vol).use(fs))
+}
 
 const core = require('../src/core')
 const svc = require('../src/service')

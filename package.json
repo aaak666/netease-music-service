@@ -8,7 +8,8 @@
     "stop": "node stop.js",
     "login": "node login.js",
     "test": "node test/unit.test.js && node test/integration.test.js",
-    "test:unit": "node test/unit.test.js"
+    "test:unit": "node test/unit.test.js",
+    "test:unit:io": "node test/unit.test.js --io"
   },
   "keywords": [
     "netease",
@@ -29,5 +30,10 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "fs-monkey": "^1.1.0",
+    "memfs": "^4.80.0",
+    "unionfs": "^4.6.0"
   }
 }

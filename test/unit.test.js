@@ -1213,23 +1213,6 @@ async function main() {
     assert.deepStrictEqual(order, ['blocker', 'third'], `被取消的任务不应执行，实际 ${order.join(',')}`)
   })
 
-  await t('queue: cancel(id) 按 id 取消排队任务 + FIFO 保持', async () => {
-    const q = svc.queue.createSerialQueue()
-    const order = []
-    let firstStarted = false
-    const gate = makeGate() // 同上：first 由门闩持有，取消动作不再与 50ms 定时器赛跑
-    q.push(() => { firstStarted = true; order.push('first'); return gate.wait })
-    const h2 = q.push(() => { order.push('second') })
-    q.push(() => { order.push('third') })
-    await until(() => firstStarted)
-    assert.strictEqual(q.cancel(h2.id), 'queued')
-    assert.strictEqual(q.cancel(999999), null, '未知 id 应返回 null')
-    assert.deepStrictEqual(order, ['first'], '放行前不得有排队任务被执行')
-    gate.open()
-    await until(() => q.pending === 0 && !q.active)
-    assert.deepStrictEqual(order, ['first', 'third'])
-  })
-
   await t('queue: running 协作式取消（signal abort 后下一个边界停）', async () => {
     const q = svc.queue.createSerialQueue()
     let secondRan = false
@@ -2048,6 +2031,15 @@ async function main() {
       assert.strictEqual(r4.dir, root, '.. 应被挡在根目录外')
       assert.strictEqual(r4.throttled, true)
       assert.strictEqual(execFileStub.calls.length, 1, '穿越场景同样不得 exec')
+      // 5) Win32 尾字符剥离（决策 71 的 '..%20' 形态）：'.. ' 的字符串前缀检查能过，
+      //    但 Win32 文件系统会吃掉尾空格使其变成 '..' —— 归一守卫必须先剥再判。
+      //    （盘符/ADS 形态如 'x:ads' 无需专测：win32 的 basename 本就把盘符段剥掉，
+      //     解析结果恒在根内，守卫的 ':' 正则只是 POSIX 侧的兜底）
+      lastOpenByDir.set(root, Date.now())
+      const r5 = await reqOpen('.. ')
+      assert.strictEqual(r5.dir, root, "'.. '（尾空格）应被归一守卫挡在根目录外")
+      assert.strictEqual(r5.throttled, true)
+      assert.strictEqual(execFileStub.calls.length, 1, '守卫拦截场景全程不得 exec')
     } finally {
       await new Promise((r) => srv.close(r))
       fs.rmSync(sub, { recursive: true, force: true })
@@ -3079,6 +3071,40 @@ async function main() {
       const c = await svc.login.pollQr('k', { timeout: 5000 })
       assert.deepStrictEqual(saved, ['MUSIC_U=NEW'])
       assert.strictEqual(c, 'MUSIC_U=KEEP')
+    } finally {
+      core.login.checkQr = origCheckQr
+      core.cookie.save = origSave
+      core.cookie.get = origGet
+    }
+  })
+
+  await t('login: pollQr 瞬时错续轮 / 终态错速败 / 800 过期 三口径（决策 41 回归锁）', async () => {
+    const origCheckQr = core.login.checkQr
+    const origSave = core.cookie.save
+    const origGet = core.cookie.get
+    try {
+      core.cookie.save = () => {}
+      core.cookie.get = () => 'MUSIC_U=KEEP'
+      // 1) 瞬时错误（fetch failed）不判死：前两轮抖动、第三轮成功 → 轮询继续并最终返回
+      let n = 0
+      core.login.checkQr = async () => {
+        n++
+        if (n < 3) throw new Error('fetch failed')
+        return { code: 803, cookie: 'MUSIC_U=RETRY_OK' }
+      }
+      const ok = await svc.login.pollQr('k', { timeout: 30000 })
+      assert.strictEqual(ok, 'MUSIC_U=KEEP', `瞬时错误应续轮到成功（实际轮询 ${n} 次）`)
+      assert.strictEqual(n, 3, '瞬时错误后应继续调用 checkQr，而不是直接超时收尾')
+      // 2) 终态错误速败：本可速败的问题不得拖满外层 timeout
+      core.login.checkQr = async () => { const e = new Error('key 非法'); e.noUrl = true; throw e }
+      let err = null
+      try { await svc.login.pollQr('k', { timeout: 30000 }) } catch (e) { err = e }
+      assert.ok(err && !/登录超时/.test(err.message), `终态错误必须立即上抛，实际: ${err && err.message}`)
+      // 3) 800：如实报"二维码已过期"
+      core.login.checkQr = async () => ({ code: 800 })
+      err = null
+      try { await svc.login.pollQr('k', { timeout: 30000 }) } catch (e) { err = e }
+      assert.ok(err && /过期/.test(err.message), `800 应报过期，实际: ${err && err.message}`)
     } finally {
       core.login.checkQr = origCheckQr
       core.cookie.save = origSave

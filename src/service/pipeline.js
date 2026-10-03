@@ -143,19 +143,22 @@ async function runBatch(songs, opts = {}, backend) {
             level: resolved.level, br: resolved.br, ext: realExt,
             size: backend.existedSize(base, realExt), existed: true,
           }
+          // 记账先行：音频"已在"是客观事实，先把结果与索引记上——若补词阶段设备断开
+          // （下式上抛中止整批），这首必须仍记"完成"、索引不得缺条目，批次报告才不失真
+          results.push(r)
+          indexSong(s, base)
+          if (onFile) try { onFile(r, s) } catch { /* 观察回调不影响批次 */ }
           if ((lyricsFor ? lyricsFor.has(s) : go.lyrics) && !present.lrc.has(base)) {
             try {
               const lrcFile = await backend.writeLyric(s.id, base, signal)
               if (lrcFile) { r.lrcFile = lrcFile; backend.noteLyric(base) }
             } catch (e) {
-              // 设备断了必须上抛中止整批（吞掉的话这首会被记"完成"，且后续每首都白下载）
+              // 设备断了必须上抛中止整批：歌已如实记账，但设备已不可用，
+              // 继续逐首只会白烧后续取流请求（吞掉的话断连感知要推迟到下一首的取流）
               if (backend.isBatchAbort(e)) throw e
               /* 其余歌词失败不影响记账 */
             }
           }
-          results.push(r)
-          indexSong(s, base)
-          if (onFile) try { onFile(r, s) } catch { /* 观察回调不影响批次 */ }
           continue
         }
         // 取流 → 完整性校验 → 打标签 → 落盘：平台差异全部封在 storeAudio 里，
@@ -165,27 +168,28 @@ async function runBatch(songs, opts = {}, backend) {
           onProgress: onProgress ? (p) => { try { onProgress(p, s) } catch { /* 观察回调不影响下载 */ } } : null,
         })
         backend.noteStored(base, ext)
-        // 补词（缺词才写；已有歌词不重写——与 existed 分支同一判定）
-        let lrcFile = null
-        if ((lyricsFor ? lyricsFor.has(s) : go.lyrics) && !present.lrc.has(base)) {
-          try {
-            lrcFile = await backend.writeLyric(s.id, base, signal)
-            if (lrcFile) backend.noteLyric(base)
-          } catch (e) {
-            if (backend.isBatchAbort(e)) throw e
-            /* 其余歌词失败不影响音频 */
-          }
-        }
+        // 记账先行（与 existed 分支同理由）：音频已落盘是事实，先把结果与索引记上——
+        // 补词阶段断连中止时，这首必须仍是"已完成"、索引必须有条目，而非虚增一条"失败"
         const ok = {
           ok: true, filepath: stored.filepath, song: s,
           level: resolved.level, br: resolved.br, ext, size: stored.size,
           embedded: Boolean(coverBuf),
         }
-        if (lrcFile) ok.lrcFile = lrcFile
         if (stored.embedError) ok.embedError = stored.embedError
         results.push(ok)
         indexSong(s, base)
         if (onFile) try { onFile(ok, s) } catch { /* 观察回调不影响批次 */ }
+        // 补词（缺词才写；已有歌词不重写——与 existed 分支同一判定）
+        if ((lyricsFor ? lyricsFor.has(s) : go.lyrics) && !present.lrc.has(base)) {
+          try {
+            const lrcFile = await backend.writeLyric(s.id, base, signal)
+            if (lrcFile) { ok.lrcFile = lrcFile; backend.noteLyric(base) }
+          } catch (e) {
+            // 设备断了必须上抛中止整批：歌已如实记账，继续逐首只会白烧后续取流
+            if (backend.isBatchAbort(e)) throw e
+            /* 其余歌词失败不影响音频 */
+          }
+        }
       } catch (e) {
         // 取消中断（AbortError）不是这首歌的失败：如实上抛交任务层收口为 cancelled——
         // 否则日志会先多一条"失败：<英文 abort 文案>"再跟"已取消"，误导事后排查

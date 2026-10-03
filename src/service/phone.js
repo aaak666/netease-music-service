@@ -13,7 +13,6 @@
  */
 const core = require('../core')
 const storage = require('./storage')
-const dl = require('./download')
 const naming = require('./naming')
 const pipeline = require('./pipeline')
 const incremental = require('./incremental')
@@ -36,9 +35,12 @@ const audioPushTimeout = (bytes) => {
   const need = Math.ceil((Number(bytes) || 0) / (2 * 1024 * 1024)) * 1000
   return Math.max(AUDIO_PUSH_TIMEOUT, need + 30 * 1000)
 }
-/** 内存护栏：基线 → 按接口 size 放宽 → 绝对天花板封顶（size 缺失时不误伤超长无损） */
-const audioMaxBytes = (declaredSize) =>
-  Math.min(MAX_AUDIO_BYTES_CEIL, Math.max(MAX_AUDIO_BYTES, (Number(declaredSize) || 0) * 1.1 + 1024 * 1024))
+/** 内存护栏：有 size → 基线/按 size 放宽取大者；size 缺失（接口没回这个字段）→ 直接给到
+ *  绝对天花板——不误伤超长无损，完整性仍由 md5 比对兜底，内存峰值风险由天花板封顶 */
+const audioMaxBytes = (declaredSize) => {
+  const n = Number(declaredSize) || 0
+  return Math.min(MAX_AUDIO_BYTES_CEIL, n > 0 ? Math.max(MAX_AUDIO_BYTES, n * 1.1 + 1024 * 1024) : MAX_AUDIO_BYTES_CEIL)
+}
 
 // ---- 设备断连/接触不良容错 ----
 // USB 断触的典型形态是几秒内自行恢复；恢复窗口内从内存 buffer 重推（不重新下载），
@@ -184,12 +186,30 @@ function findBatchDir(base, name, type = 'playlist', ownerId = null) {
   for (const stem of candidates) {
     if (!dirs.has(stem)) continue
     const dir = `${root}/${stem}`
+    // 与 storage.findBatchDir 同口径（决策 69）：只有"标记文件不存在"才是旧版本产物（向后兼容
+    // 认领）；文件在却读不出/解析失败/不是对象一律不可信——不认领。此前"无/坏标记"一刀切当旧目录，
+    // 截断的 .ncm-batch.json（推送中断残留）会让榜单/时间戳批次被同名歌单误认领，歌被永久跳过
+    let raw
+    try {
+      raw = adb.readText(`${dir}/${storage.MARKER}`)
+    } catch (e) {
+      if (/No such file or directory/i.test((e && e.message) || '')) return dir
+      logger.error('phone', `批次标记不可读或已损坏（不认领该目录）: ${dir} — ${core.error.errMsg(e)}`)
+      return null
+    }
     let marker
     try {
-      marker = JSON.parse(adb.readText(`${dir}/${storage.MARKER}`))
-    } catch { /* 无/坏标记 = 旧版本产物，保持向后兼容 */ return dir }
-    if (marker && marker.type && marker.type !== type) continue
-    if (marker && marker.ownerId != null && String(marker.ownerId) !== String(ownerId)) continue
+      marker = JSON.parse(raw)
+    } catch (e) {
+      logger.error('phone', `批次标记已损坏（不认领该目录）: ${dir} — ${core.error.errMsg(e)}`)
+      return null
+    }
+    if (!marker || typeof marker !== 'object' || Array.isArray(marker)) {
+      logger.error('phone', `批次标记格式异常（不认领该目录）: ${dir}`)
+      return null
+    }
+    if (marker.type && marker.type !== type) continue
+    if (marker.ownerId != null && String(marker.ownerId) !== String(ownerId)) continue
     return dir
   }
   return null

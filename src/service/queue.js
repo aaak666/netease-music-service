@@ -13,7 +13,6 @@
  *  - queued 取消：handle.cancel() 把条目从等待队列摘除并 abort，后续 pump 不再执行它
  *  - running 取消：handle.cancel() 只 abort + 置 cancelled，当前首不强杀，
  *    任务在下一个边界感知到 abort 后自行收尾（server 层把 job 置为 cancelled）
- *  - queue.cancel(id) 按句柄 id 取消等待中或运行中的任务，返回 'queued' / 'running'，找不到返回 null
  */
 function createSerialQueue() {
   const waiting = []
@@ -65,23 +64,6 @@ function createSerialQueue() {
       // 在 pump 里加了会抛的语句"不会变成逃出 push 的未处理拒绝（服务端只记日志、不崩）
       if (!active) void pump().catch(() => {})
       return entry
-    },
-    /**
-     * 按 push 返回句柄的 id 取消。等待中→摘除并 abort；运行中→仅 abort（协作式），
-     * 由任务在下一个边界收尾。返回 'queued' / 'running'，无此任务返回 null。
-     */
-    cancel(id) {
-      const n = Number(id)
-      const inWaiting = waiting.find((e) => e.id === n)
-      if (inWaiting) {
-        cancelEntry(inWaiting)
-        return 'queued'
-      }
-      if (current && current.id === n) {
-        cancelEntry(current)
-        return 'running'
-      }
-      return null
     },
     get pending() {
       return waiting.length

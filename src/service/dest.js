@@ -51,11 +51,21 @@ function load() {
       cache = { mtimeMs, cfg: { active: typeof raw.active === 'string' ? (activeKept) : null, next: Math.max(Number(raw.next) || 1, maxId + 1), list: kept } }
       return cache.cfg
     }
+    // 合法 JSON 但根结构不是对象（手改时写成了数组/数字）：同样不可信。与坏 JSON 同路径——
+    // 先留 .bak 再按空配置重建，否则随后任何一次 save 都会用空列表覆盖原文件，配置无声丢失
+    try { fs.renameSync(FILE, FILE + '.bak') } catch { /* 留不住就算了 */ }
+    try { logger.error('dest', `destinations.json 根结构不是对象（已备份为 .bak，重置为空配置）`) } catch { /* logger 自身失败不阻断 */ }
   } catch (e) {
     if (e instanceof SyntaxError) {
       // 坏 JSON 不能只是"当空配置用"：随后任何一次 save 都会用空列表覆盖原文件，
       // 用户的全部目的地配置无声丢失——先把原文件留个 .bak 底
       try { fs.renameSync(FILE, FILE + '.bak') } catch { /* 留不住就算了 */ }
+    } else {
+      // 读失败（权限/占用）不是文件坏了：绝不能动原文件，也不能把空配置当结果——
+      // 那会让 UI 目的地清空、下载悄悄落回缺省目录，随后的 save 更是无痕覆盖。
+      // 保留上一份缓存大声告警；从未加载成功过才退到空配置
+      try { logger.error('dest', `destinations.json 读取失败（沿用上一份配置）: ${core.error.errMsg(e)}`) } catch { /* 不阻断 */ }
+      if (cache) return cache.cfg
     }
   }
   cache = { mtimeMs: -1, cfg: { active: null, next: 1, list: [] } }

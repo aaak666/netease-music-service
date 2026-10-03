@@ -337,11 +337,13 @@ async function createTask(p, ctx) {
               : `${p.source}:${p.id != null ? String(p.id) : ''}`)
     // 选项也进键：同一歌单同时提交 320k 与无损是**两个不同的批次**，合并会让用户明确选的
     // 无损被静默丢弃（返回的仍是 200 already，用户以为无损任务也在跑）
+    // limit 与音质补下同理进键：limit=5 在跑时再提交全量，若合并则"已并入（600 首）"的提示
+    // 与实际只下 5 首不符；第二次勾选"音质补下"被并进未勾选的任务则补下完全不生效
     // 歌词判定只算一次，下载写词与增量补词共用同一个开关（此前是两套判定：
     // 旧 /download/* 端点不传 lyrics 时"不写词但补词"，同一请求出现两套口径）
     // 必须在 batchKey 之前求值：batchKey 要用它，而 const 的 TDZ 会直接抛
     const lyricsOn = !/^(false|0)$/i.test(String(p.lyrics))
-    const batchKey = `${batchType}|${batchIdent}|dest:${d.id || 'default'}|br:${brOf(p)}|lyrics:${lyricsOn ? 1 : 0}`
+    const batchKey = `${batchType}|${batchIdent}|dest:${d.id || 'default'}|br:${brOf(p)}|lyrics:${lyricsOn ? 1 : 0}|limit:${cut}|fill:${fillQuality ? 1 : 0}`
     let plan = null
     const jobOpts = {
       batchKey,

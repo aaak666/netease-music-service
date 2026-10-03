@@ -190,7 +190,7 @@ async function loadLyrics(t) {
   const path = (t.lrc || '').replace(/^https?:\/\/[^/]+/, '') // 剥成同源路径，换端口/局域网也能取
   if (!path) { setLyricPlaceholder('暂无歌词'); return }
   try {
-    const resp = await fetch(path)
+    const resp = await fetch(path, { signal: AbortSignal.timeout(30000) })
     // 必须看状态码：404/500 的响应体是 HTML 或 JSON 错误，parseLrc 解析出 0 行，
     // 于是所有真实故障都显示成"暂无歌词"——用户以为歌本来就没词，不会去查服务
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
@@ -703,17 +703,18 @@ async function refreshJobs() {
     // 且既不计入 pollFails 也不弹提示（服务其实完全正常）。用户看到的是任务面板无声无息
     // 冻结在最后一帧，只有刷新页面才能恢复。宁可跳过这一条，也不能拖垮整批
     try {
-      renderOneJobCard(job, seen)
+      renderOneJobCard(job, seen, list)
     } catch (e) {
       console.warn('跳过异常的任务记录', job && job.id, e)
       if (job && job.id != null) seen.add(job.id) // 仍标记已见，否则末尾的清理会删掉别人的卡片
     }
   }
-  finishJobCards(seen)
+  finishJobCards(seen, jobs)
 }
 
-/** 单张任务卡片（从 refreshJobs 拆出，便于逐条 try/catch 隔离） */
-function renderOneJobCard(job, seen) {
+/** 单张任务卡片（从 refreshJobs 拆出，便于逐条 try/catch 隔离）；list 由调用方传入——
+ *  拆函数时 list/jobs 仍是 refreshJobs 的局部变量，模块层没有同名声明，漏传就是 ReferenceError */
+function renderOneJobCard(job, seen, list) {
   {
     seen.add(job.id)
     let el = jobEls.get(job.id)
@@ -763,7 +764,7 @@ function renderOneJobCard(job, seen) {
       cancelBtn.addEventListener('click', async () => {
         cancelBtn.disabled = true
         try {
-          const r = await fetch('/api/job/' + job.id, { method: 'DELETE' })
+          const r = await fetch('/api/job/' + job.id, { method: 'DELETE', signal: AbortSignal.timeout(30000) })
           const j = await r.json().catch(() => ({}))
           if (!r.ok) toast('取消失败：' + (j.error || r.status))
           refreshJobs()
@@ -836,8 +837,8 @@ function renderOneJobCard(job, seen) {
   }
 }
 
-/** 卡片重排 + 清理本次没出现的旧卡片（拆出以便与逐条渲染的 try 隔离配套） */
-function finishJobCards(seen) {
+/** 卡片重排 + 清理本次没出现的旧卡片（拆出以便与逐条渲染的 try 隔离配套）；jobs 由调用方传入 */
+function finishJobCards(seen, jobs) {
   const list = $('jobList')
   // 任务卡片按 API 顺序（最新在前）重排——只在顺序真的变化时才动 DOM：
   // append 会把节点 detach 再插回，.log 的滚动位置随之清零（跳回顶部），

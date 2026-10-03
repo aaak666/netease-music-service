@@ -134,16 +134,12 @@ function fsSink(dir) {
  *   - br / level: 音质
  *   - lyrics: 同时保存 .lrc 歌词
  *   - cover: 下载封面图并内嵌进音频（内嵌失败不影响音频）
- *   - base: 基础文件名覆盖（批量路径由骨架预先分配；缺省自行分配并避开目录内已有文件）
- *   - skipIfExists: 已废弃语义保留兼容（目标文件已在时本就不重下不覆盖，见 existed 分支）；
- *     音质补下模式（解析请求无损但服务端降级回 mp3、同基础名 .mp3 已在）如今同样由此兜住
- *   - coverData / coverMime: 预取的封面（批次层按 picUrl 去重后传入；传入即跳过封面请求）
  *   - onProgress: (p) => void，p = { received, total, percent }
  *   - autoDowngrade: 音质取不到时降级（默认 true）
  *   - signal: 任务取消信号（批量路径由骨架注入）：取消即时断流，不再等当前文件下完
  * @returns { filepath, song, level, br, size, ext, lrcFile?, embedded?, embedError?, existed? }
  */
-async function download(idOrSong, { dir = path.join(__dirname, '..', '..', 'downloads'), br, level, onProgress, autoDowngrade = true, lyrics = false, cover = true, base, skipIfExists = false, coverData, coverMime, taken, signal } = {}) {
+async function download(idOrSong, { dir = path.join(__dirname, '..', '..', 'downloads'), br, level, onProgress, autoDowngrade = true, lyrics = false, cover = true, signal } = {}) {
   const songInfo = typeof idOrSong === 'object' && idOrSong !== null ? idOrSong : await core.song.getOne(idOrSong)
   if (!songInfo) throw new Error(`歌曲不存在 (id=${typeof idOrSong === 'object' ? idOrSong.id : idOrSong})`)
 
@@ -161,14 +157,7 @@ async function download(idOrSong, { dir = path.join(__dirname, '..', '..', 'down
 
   // 文件名 = 分配出的基础名 + 扩展名（分配规则见 naming.assignBaseNames；先清洗再拼扩展名：
   // 否则超长歌名会把扩展名一起截掉，产物无后缀、下次启动被清扫误删）
-  // taken 复用：批量纯 ID 路径由调用方一次扫盘后传入，避免每首各扫一次（O(n) 重复扫盘）；
-  // assignBaseNames 内部会拷贝 taken 防污染，本批内新分配的名字需手动加回，保持后续纯 ID 项避让。
-  // 扫盘必须留在 `base ||` 的右操作数里（短路求值）：批次预分配过 base 时根本用不到 taken，
-  // 若先算成变量再判空，批内每首都会白扫一次全目录（大歌单 = 每首一次 readdir + 逐条正则）
-  const name = base || naming.assignBaseNames([songInfo], taken instanceof Set ? taken : naming.takenBases(dir)).get(songInfo)
-  // taken 加回放在"确实落盘"之后而不是分配之后：这名字是批内共享的避让集，提前占用会让
-  // 本首失败（网络/校验/改名）时同名的后一首被挤到 "xxx (2)"，而 xxx 从来没被写到盘上
-  const rememberName = () => { if (taken instanceof Set) taken.add(name) }
+  const name = naming.assignBaseNames([songInfo], naming.takenBases(dir)).get(songInfo)
   const filename = `${name}.${resolved.ext}`
   const filepath = path.join(dir, filename)
 
@@ -177,7 +166,6 @@ async function download(idOrSong, { dir = path.join(__dirname, '..', '..', 'down
   if (fs.existsSync(filepath)) {
     let size = 0
     try { size = fs.statSync(filepath).size } catch { /* 已消失按 0 记 */ }
-    rememberName() // 磁盘上确有该名，纳入批内避让集
     const result = { filepath, song: songInfo, level: resolved.level, br: resolved.br, ext: resolved.ext, existed: true, size }
     const lrcPath = filepath.replace(/\.[^.]+$/, '.lrc')
     if (lyrics && !fs.existsSync(lrcPath)) {
@@ -224,9 +212,6 @@ async function download(idOrSong, { dir = path.join(__dirname, '..', '..', 'down
     try { fs.unlinkSync(tmpPath) } catch { /* 仍被占用则留给 sweepDownloads */ }
     throw new Error(`下载完成但落盘失败（文件被占用？）: ${e.message} → ${filepath}`)
   }
-  // 真正落盘了才占用这个名字（rename 成功即文件存在；existed 分支的旧文件自然也算已占）
-  rememberName()
-
   const result = { filepath, song: songInfo, level: resolved.level, br: resolved.br, ext: resolved.ext }
 
   if (lyrics) {
@@ -239,12 +224,11 @@ async function download(idOrSong, { dir = path.join(__dirname, '..', '..', 'down
 
   // 标签与封面解耦：无论封面成败，都保证 TITLE/ARTIST/ALBUM 写入（网易原文件常常没有标题）
   // 封面取回内存直接内嵌，下载目录不落任何封面文件（产品拍板：只留音频+歌词）
-  // coverData 来自批次层的 picUrl 去重缓存——同专辑的歌共用一次封面请求（魔数判型已在取图时做过）
   let coverBuf = null
   let coverMimeActual = null
   if (cover && songInfo.picUrl) {
     try {
-      const c = coverData ? { buf: coverData, mime: coverMime } : await naming.fetchCover(songInfo.picUrl)
+      const c = await naming.fetchCover(songInfo.picUrl)
       coverBuf = c.buf
       coverMimeActual = c.mime
     } catch { /* 封面失败不影响音频 */ }

@@ -1,6 +1,6 @@
 /**
  * 歌曲核心模块：单曲/批量详情，归一化为统一结构
- * 归一化结构：{ id, name, artist, album, picId, picUrl, duration }
+ * 归一化结构：{ id, name, artist, album, picUrl, duration }
  */
 const cookie = require('./cookie')
 const { song_detail } = require('NeteaseCloudMusicApi')
@@ -11,7 +11,6 @@ function normalize(s) {
     name: s.name,
     artist: (s.ar || s.artists || []).map((a) => a.name).join('/'),
     album: (s.al || s.album || {}).name || '',
-    picId: (s.al || s.album || {}).pic_str || (s.al || s.album || {}).pic || String(s.id),
     picUrl: (s.al || s.album || {}).picUrl || '',
     duration: s.dt || s.duration || 0,
   }

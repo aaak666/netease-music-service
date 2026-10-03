@@ -50,4 +50,4 @@ async function get(idOrName, { limit } = {}) {
   }
 }
 
-module.exports = { charts, findByName, get, _resetCache }
+module.exports = { charts, get, _resetCache }

@@ -66,15 +66,15 @@ function plan(songs, index = {}, { lyrics = true, qualityExt = null } = {}) {
       hitBases.add(b)
     }
   }
-  // 第二步：命名分配。命中的歌稳定前置（先占先得：它们的历史名先被占住，同名未命中的歌才会拿到新名），
+  // 第二步：命名分配，只对**未命中**的歌——命中歌的历史 base 已由 override 表定死，让它们
+  // 进认领阶段是纯浪费（按名字认领了历史文件，随后又被 override 覆盖回去），更坏的是这份
+  // 认领会占住字面名，把同名的未命中歌本可认领的历史文件挤成新名重下（孤儿文件）。
   // 未命中歌保持原相对顺序；taken 追加 hitBases 保证未命中歌"认领/分配"两阶段都避让历史名。
   // hitBases 同时作为 claimed 预置传入：历史 base 是"(2)"这类非字面形态时，字面名恰同的新歌
   // 不得在认领阶段抢走它（抢走会把旧文件误判成新歌的"已存在"而永久跳过）——只许避让不许认领
-  const ordered = override.size
-    ? [...songs.filter((s) => override.has(s)), ...songs.filter((s) => !override.has(s))]
-    : songs
-  const assigned = naming.assignBaseNames(ordered, new Set([...audioIndex.keys(), ...lrcIndex, ...hitBases]), hitBases)
-  // 第三步：命中歌用历史 base 覆盖分配结果（无论该 base 是纯名还是带歌手），未命中歌沿用分配结果
+  const unhit = override.size ? songs.filter((s) => !override.has(s)) : songs
+  const assigned = naming.assignBaseNames(unhit, new Set([...audioIndex.keys(), ...lrcIndex, ...hitBases]), hitBases)
+  // 第三步：命中歌用历史 base 覆盖（无论该 base 是纯名还是带歌手），未命中歌沿用分配结果
   const bases = override.size
     ? new Map(songs.map((s) => [s, override.has(s) ? override.get(s) : assigned.get(s)]))
     : assigned

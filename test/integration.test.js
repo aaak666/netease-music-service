@@ -6,17 +6,27 @@
  */
 const assert = require('assert')
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
 
 const core = require('../src/core')
 const svc = require('../src/service')
-// 测试产生的下载统一落到临时目录，避免污染真实 downloads
-process.env.DOWNLOAD_DIR = path.join(__dirname, 'tmp')
+// 测试产生的下载统一落到系统临时目录（不在项目内留 test/tmp）：项目目录零写入；
+// 结束时整树删除，进程退出钩子兜底（失败/中断/句柄占用也不残留，与 unit.test.js 同一套）
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'ncm-int-'))
+const TMP_DIRS = [TMP]
+function rmRf(p) {
+  for (let i = 0; i < 3; i++) {
+    try { fs.rmSync(p, { recursive: true, force: true }); return } catch { /* 占用重试 */ }
+  }
+}
+process.on('exit', () => { for (const d of TMP_DIRS) rmRf(d) })
+process.env.DOWNLOAD_DIR = TMP
 // 目的地配置同样指向临时文件：本机真实 destinations.json 若激活了手机/自定义目的地，
 // 集成任务的下载会被路由到手机（真往设备写歌）或外部目录，而不是测试临时目录
-svc.dest._useFile(path.join(__dirname, 'tmp', 'destinations.json'))
+svc.dest._useFile(path.join(TMP, 'destinations.json'))
 // 运行日志指向临时文件：集成任务的状态翻转/建任务失败日志不得混进生产 logs/service.log
-svc.logger._useFile(path.join(__dirname, 'tmp', 'service.log'))
+svc.logger._useFile(path.join(TMP, 'service.log'))
 const { app } = require('../server')
 
 const results = []
@@ -31,7 +41,6 @@ async function t(name, fn) {
   }
 }
 
-const TMP = path.join(__dirname, 'tmp')
 let server
 
 async function main() {
@@ -329,7 +338,7 @@ async function main() {
   })
 
   server.close()
-  fs.rmSync(TMP, { recursive: true, force: true })
+  for (const d of TMP_DIRS) rmRf(d)
 
   const fails = results.filter((ok) => !ok).length
   console.log(`\n== 集成测试: ${results.length - fails}/${results.length} 通过 ==`)

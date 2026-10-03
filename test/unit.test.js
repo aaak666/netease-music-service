@@ -6,8 +6,22 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 
-// 临时目录唯一出处：每个用例自建自清（用例末尾 rmSync），互不串目录
-const tmpDir = (prefix) => fs.mkdtempSync(path.join(os.tmpdir(), prefix))
+// 临时目录唯一出处：每个用例自建自清（用例末尾 rmSync），互不串目录。
+// 全部登记进 TMP_DIRS，进程退出时兜底再清一遍——用例半途失败、手动中断、Windows 下
+// 杀软/遗留句柄让单次 rmSync 抛 EBUSY/EPERM（历史残留 148MB 的教训），都不许留垃圾：
+// 测试对磁盘的占用收敛为"运行期间存在、退出即归零"
+const TMP_DIRS = []
+const tmpDir = (prefix) => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
+  TMP_DIRS.push(d)
+  return d
+}
+function rmRf(p) {
+  for (let i = 0; i < 3; i++) {
+    try { fs.rmSync(p, { recursive: true, force: true }); return } catch { /* 占用重试 */ }
+  }
+}
+process.on('exit', () => { for (const d of TMP_DIRS) rmRf(d) })
 
 // ==== 进程级前置：必须发生在首次 require('../server') 之前 ====
 // 1) 下载根目录指向 os.tmpdir：server.js 在模块加载时把 DOWNLOAD_DIR 读成模块常量，
@@ -4450,8 +4464,9 @@ async function main() {
     } catch { /* 落盘失败也要把名字打出来 */ }
   }
 
-  // 清理本进程创建的临时下载根（只删 os.tmpdir 下的树，绝不碰真实 downloads\）
-  try { fs.rmSync(TEST_DOWNLOAD_DIR, { recursive: true, force: true }) } catch { /* 被占用则留给系统临时目录清理 */ }
+  // 清理本进程创建的全部临时目录（只删 os.tmpdir 下的树，绝不碰真实 downloads\）。
+  // rmRf 自带占用重试；即便本行被异常路径跳过，进程 exit 钩子还会幂等地兜底清一遍
+  for (const d of TMP_DIRS) rmRf(d)
 
   // 还原被替换的 execFile 桩，避免宿主进程复用时带上测试桩
   childProcess.execFile = execFileOriginal

@@ -48,7 +48,9 @@ src/service/           能力层：naming（命名/歌词/封面规则唯一出�
                        ADB 状态(adb)、参数校验(params)、实例管理(instance)
 public/                Web UI（Neumorphism 风格，零外部依赖）：
                        index.html（结构）+ app.js（逻辑）+ style.css（样式）
-test/unit.test.js      纯函数单测（无网络，毫秒级）
+test/unit.test.js      单测入口：按序调度分件（桩/内存文件系统/收集器在 unit.harness.js）
+test/unit.*.js         单测分件，按领域拆分：core 基础 / tag-lyric / fetchers / platform /
+                       download / storage / incremental / queue / phone-adb / job / server
 test/integration.test.js  集成测试（需 cookie，含真实下载与产物校验）
 login.js               扫码登录 CLI：cookie 写入 cookie.txt（"扫码登录.bat"即包装它）
 stop.js                停服 CLI：按端口识别并停止本服务进程（"停止服务.bat"即包装它）

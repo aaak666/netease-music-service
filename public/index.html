@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>网易云音乐服务</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header>
+  <div class="logo in">音</div>
+  <h1>网易云<span>音乐服务</span></h1>
+  <div class="pill in"><span id="dot" class="dot bad"></span><span id="loginText">检测中…</span></div>
+  <div class="spacer"></div>
+  <button class="small" id="openDestBtn" onclick="openFolder('', activeDestId)">打开下载目录</button>
+  <button class="small" onclick="startLogin()">重新扫码登录</button>
+</header>
+
+<div class="opts">
+  <label>音质
+    <select id="quality">
+      <option value="2000" selected>无损 FLAC</option>
+      <option value="320">320k MP3</option>
+    </select>
+  </label>
+  <label>下载位置
+    <select id="destSel">
+      <option value="">默认（项目 downloads）</option>
+    </select>
+  </label>
+  <button class="small" onclick="pickFolder(this)">选择文件夹…</button>
+  <button class="small" onclick="addPhoneDest(this)">手机文件夹…</button>
+  <div class="pill in"><span id="adbDot" class="dot bad"></span><span id="adbText">ADB 检测中…</span></div>
+  <label><input type="checkbox" id="optLrc" checked><span class="chk-box" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg></span>同时保存歌词</label>
+  <label><input type="checkbox" id="optRefill"><span class="chk-box" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg></span>音质不同也补下（只增不删）</label>
+  <span class="opt-note">封面自动内嵌进音频，不另存图片；手机目的地走 ADB 直写，不占电脑磁盘</span>
+</div>
+
+<div class="grid">
+  <div class="card wide">
+    <h2>在线试听</h2>
+    <div class="desc">临时听歌，不产生下载；加载后自动播放，可点列表切歌</div>
+    <div class="tabs" id="playTabs" role="tablist">
+      <button data-m="song" class="on" role="tab" aria-selected="true">单曲</button>
+      <button data-m="playlist" role="tab" aria-selected="false">歌单</button>
+      <button data-m="chart" role="tab" aria-selected="false">榜单</button>
+      <button data-m="daily" role="tab" aria-selected="false">每日推荐</button>
+    </div>
+    <div class="row" id="playRow">
+      <input id="playInput" placeholder="https://music.163.com/song?id=… 或 歌曲ID">
+      <select id="playChartSel" disabled><option>加载中…</option></select>
+      <button class="primary" onclick="loadTracks()">加载</button>
+    </div>
+    <div class="player" id="playerBox" style="display:none">
+      <img class="pcover" id="plCover" alt="">
+      <div class="pmain">
+        <div class="ptitle" id="plTitle">—</div>
+        <div class="partist" id="plArtist"></div>
+        <div class="pctrl">
+          <button class="small" onclick="playPrev()" title="上一首">‹</button>
+          <button class="small" id="plToggle" onclick="playToggle()" title="播放/暂停">▶</button>
+          <button class="small" onclick="playNext()" title="下一首">›</button>
+          <input type="range" id="plSeek" min="0" max="1000" value="0" title="进度">
+          <span class="ptime"><span id="plCur">0:00</span> / <span id="plDur">0:00</span></span>
+          <button class="small volbtn" id="plMute" onclick="toggleMute()" title="静音/取消静音" aria-label="静音">
+            <svg class="ico-on" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M5 9v6h4l5 5V4L9 9H5z"/>
+              <path d="M16 8.6a4.8 4.8 0 0 1 0 6.8M18.6 6a8.4 8.4 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <svg class="ico-off" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M5 9v6h4l5 5V4L9 9H5z"/>
+              <path d="M16.5 9.5l5 5M21.5 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <input type="range" class="vol" id="plVol" min="0" max="100" value="100" title="音量" aria-label="音量">
+        </div>
+      </div>
+    </div>
+    <div class="lyrics" id="plLyrics"></div>
+    <div class="tracks" id="plList"></div>
+    <audio id="plAudio" preload="none"></audio>
+  </div>
+
+  <div class="card">
+    <h2>每日推荐</h2>
+    <div class="desc">每天 0 点更新，约 30 首</div>
+    <div class="row">
+      <input type="number" id="dailyCount" value="30" min="1" max="30">
+      <button class="primary" onclick="downloadJob(this, 'daily', {limit: v('dailyCount')})">下载</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>歌单下载</h2>
+    <div class="desc">粘贴歌单链接或直接填歌单 ID</div>
+    <div class="row">
+      <input id="playlistId" placeholder="https://music.163.com/playlist?id=… 或 歌单ID">
+      <button class="primary" onclick="downloadJob(this, 'playlist', {id: pid(v('playlistId'))})">下载</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>排行榜</h2>
+    <div class="desc">飙升榜、新歌榜、热歌榜等官方榜单</div>
+    <div class="row">
+      <select id="chartSel" disabled><option>加载中…</option></select>
+      <input type="number" id="chartLimit" value="20" min="1" placeholder="前N首">
+      <button class="primary" onclick="downloadJob(this, 'chart', {id: document.getElementById('chartSel').value, limit: v('chartLimit')})">下载</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>相似歌曲</h2>
+    <div class="desc">以某首歌为种子链式扩展相似推荐</div>
+    <div class="row">
+      <input id="simiId" placeholder="种子歌曲链接或 ID">
+      <input type="number" id="simiCount" value="20" min="1" max="100">
+      <button class="primary" onclick="downloadJob(this, 'simi', {id: pid(v('simiId')), total: v('simiCount')})">下载</button>
+    </div>
+  </div>
+
+  <div class="card wide">
+    <h2>单曲下载</h2>
+    <div class="desc">每行一个歌曲链接或 ID，先加入队列，最后一次性按顺序下载（结果存入以启动时间命名的独立文件夹）</div>
+    <textarea id="songLinks" class="links" rows="3"
+      placeholder="https://music.163.com/song?id=… 或歌曲ID（每行一个，也可用逗号分隔）"></textarea>
+    <div class="row" style="margin-top:12px">
+      <button class="small" onclick="enqueueSongs()">加入队列</button>
+      <button class="small" onclick="clearSongQueue()">清空</button>
+      <span class="opt-note queue-count" id="queueCount"></span>
+      <span class="spacer"></span>
+      <button class="primary" onclick="startSongQueue(this)">开始下载</button>
+    </div>
+    <div class="tracks" id="songQueue"></div>
+  </div>
+</div>
+
+<div class="jobs">
+  <h2>下载任务</h2>
+  <div id="jobList"><div class="empty">还没有任务</div></div>
+</div>
+
+<dialog id="qrDialog">
+  <h2>扫码登录</h2>
+  <div class="qr-well"><img id="qrImg" alt="登录二维码"></div>
+  <p id="qrStatus">正在生成二维码…</p>
+  <p><button class="small" onclick="document.getElementById('qrDialog').close()">关闭</button></p>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

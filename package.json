@@ -1,0 +1,32 @@
+{
+  "name": "netease-music-service",
+  "version": "1.0.0",
+  "description": "本地网易云音乐服务：自有账号解析/下载无损、每日推荐、私人电台、官方榜单（core 原子能力 + service 编排两层架构）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "login": "node login.js",
+    "test": "node test/unit.test.js && node test/integration.test.js",
+    "test:unit": "node test/unit.test.js"
+  },
+  "keywords": [
+    "netease",
+    "netease-cloud-music",
+    "music",
+    "download",
+    "lossless",
+    "flac",
+    "lyrics",
+    "playlist"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1",
+    "NeteaseCloudMusicApi": "4.32.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

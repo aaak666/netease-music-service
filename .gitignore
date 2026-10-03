@@ -1,0 +1,20 @@
+node_modules/
+# cookie 是账号钥匙：本体 + tmp/bak 等任何残留形态（save 是"写 tmp→改名"两步，中途被杀会留 .tmp）都不得入库
+cookie.txt*
+qr.png
+downloads/
+*.part
+test/tmp/
+.commandcode/
+
+# 下载位置配置（含本机磁盘路径/设备路径，属机器私有）：tmp/bak 残留形态一并覆盖
+destinations.json*
+
+# agent 软件自有的工作目录，不放项目文件也不入库
+.zcode/
+
+# 设计决策文档不入库（本地维护，含大量实现细节与取舍理由）
+HANDOFF.md
+
+# 运行日志（logger 双写落盘，轮转封顶 ~4MB）
+logs/

@@ -291,6 +291,6 @@ function writeBatchReport(dir, { label, br, summary }) {
 }
 
 module.exports = {
-  timestampName, batchStem, createBatchDir, findBatchDir, sweepDownloads, scanDir,
+  batchStem, createBatchDir, findBatchDir, sweepDownloads, scanDir,
   readIndexFile, mergeIndexFile, writeBatchReport, MARKER, INDEX_NAME, REPORT_NAME,
 }

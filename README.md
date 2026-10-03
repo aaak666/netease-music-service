@@ -50,6 +50,9 @@ public/                Web UI（Neumorphism 风格，零外部依赖）：
                        index.html（结构）+ app.js（逻辑）+ style.css（样式）
 test/unit.test.js      纯函数单测（无网络，毫秒级）
 test/integration.test.js  集成测试（需 cookie，含真实下载与产物校验）
+login.js               扫码登录 CLI：cookie 写入 cookie.txt（"扫码登录.bat"即包装它）
+stop.js                停服 CLI：按端口识别并停止本服务进程（"停止服务.bat"即包装它）
+tools/phone-fill.js    手机歌单补齐应急 CLI：直连设备对账补缺，不走服务队列
 ```
 
 **分层纪律**：core 只提供**控制流原语**（一次外部交互、一次纯映射，以及 `retry.js` 的 `withTimeout/withRetry`——等多久、重试几次这类策略参数由调用方决定）；循环编排、组装、业务策略一律放 service。改 core 后跑 `npm test` 回归。

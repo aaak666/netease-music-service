@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "stop": "node stop.js",
     "login": "node login.js",
     "test": "node test/unit.test.js && node test/integration.test.js",
     "test:unit": "node test/unit.test.js"
@@ -19,7 +20,7 @@
     "lyrics",
     "playlist"
   ],
-  "author": "",
+  "author": "aaak666",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {

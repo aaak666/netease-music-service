@@ -6,11 +6,14 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 
+// 临时目录唯一出处：每个用例自建自清（用例末尾 rmSync），互不串目录
+const tmpDir = (prefix) => fs.mkdtempSync(path.join(os.tmpdir(), prefix))
+
 // ==== 进程级前置：必须发生在首次 require('../server') 之前 ====
 // 1) 下载根目录指向 os.tmpdir：server.js 在模块加载时把 DOWNLOAD_DIR 读成模块常量，
 //    晚了就改不动——此后建批次目录 / /api/open-folder / /api/status 回执全部落在临时目录，
 //    用例绝不碰真实 downloads\（本文件所有 rm 也只作用于该临时树）
-process.env.DOWNLOAD_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'ncm-test-dl-'))
+process.env.DOWNLOAD_DIR = tmpDir('ncm-test-dl-')
 const TEST_DOWNLOAD_DIR = process.env.DOWNLOAD_DIR
 // 2) 拦截 execFile：server.js 加载时解构 child_process.execFile（/api/open-folder 用它弹资源管理器），
 //    必须在其加载前替换为记录桩——即使节流逻辑失灵也绝不会真的弹出 explorer 窗口
@@ -345,7 +348,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tagtest-'))
+    const dir = tmpDir('tagtest-')
     const mp3 = path.join(dir, 'a.mp3')
     // 构造最小 MPEG 帧（0xFF 0xFB 帧头 + 假数据）
     fs.writeFileSync(mp3, Buffer.concat([Buffer.from([0xff, 0xfb, 0x90, 0x00]), Buffer.alloc(400, 0x55)]))
@@ -373,7 +376,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tagtest-'))
+    const dir = tmpDir('tagtest-')
     const flac = path.join(dir, 'a.flac')
     // 构造最小 FLAC：fLaC + STREAMINFO(38B) + PADDING(last) + 音频帧
     const audioFrames = Buffer.concat([Buffer.from([0xff, 0xf8]), Buffer.alloc(200, 0xaa)])
@@ -400,7 +403,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vorbis-'))
+    const dir = tmpDir('vorbis-')
     try {
       const u24 = (n) => Buffer.from([(n >> 16) & 255, (n >> 8) & 255, n & 255])
       const u32le = (n) => { const b = Buffer.alloc(4); b.writeUInt32LE(n); return b }
@@ -458,7 +461,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'footer-'))
+    const dir = tmpDir('footer-')
     try {
       const body = Buffer.from('TITLE=Old', 'utf8')
       const ss = (n) => Buffer.from([(n >> 21) & 127, (n >> 14) & 127, (n >> 7) & 127, n & 127])
@@ -488,7 +491,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tagtest-'))
+    const dir = tmpDir('tagtest-')
     const bad = path.join(dir, 'bad.mp3')
     fs.writeFileSync(bad, Buffer.from('ID3\x03\x00\x00\x00\x00\x10\x00garbage'))
     const v = core.tag.verifyTags(bad)
@@ -500,7 +503,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tagtest-'))
+    const dir = tmpDir('tagtest-')
     const mp3 = path.join(dir, 't.mp3')
     fs.writeFileSync(mp3, Buffer.concat([Buffer.from([0xff, 0xfb, 0x90, 0x00]), Buffer.alloc(400, 0x55)]))
     core.tag.embedCover(mp3, { title: '无封歌', artist: '某人', album: '' })
@@ -603,7 +606,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tagbuf-'))
+    const dir = tmpDir('tagbuf-')
     const mp3 = path.join(dir, 'a.mp3')
     fs.writeFileSync(mp3, Buffer.concat([Buffer.from([0xff, 0xfb, 0x90, 0x00]), Buffer.alloc(400, 0x55)]))
     const png = Buffer.concat([
@@ -624,7 +627,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sweep-'))
+    const dir = tmpDir('sweep-')
     for (const f of ['a.mp3', 'a.lrc', 'b.flac', 'a.mp3.part', 'x.tagtmp', 'c-cover.jpg', 'd.txt', svc.storage.MARKER, svc.storage.REPORT_NAME]) {
       fs.writeFileSync(path.join(dir, f), 'x')
     }
@@ -638,7 +641,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'batch-'))
+    const base = tmpDir('batch-')
     const d1 = svc.storage.createBatchDir(base, '我/的歌单', 'playlist')
     assert.strictEqual(path.basename(d1), '我_的歌单')
     assert.ok(fs.existsSync(d1))
@@ -656,7 +659,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sweep2-'))
+    const dir = tmpDir('sweep2-')
     const sub = path.join(dir, '歌单A')
     fs.mkdirSync(sub)
     fs.writeFileSync(path.join(sub, 'a.mp3'), 'x')
@@ -675,7 +678,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inc-'))
+    const dir = tmpDir('inc-')
     for (const f of ['a.mp3', 'a.lrc', 'a.flac', 'b.flac', 'c.txt', 'd.mp3.part']) fs.writeFileSync(path.join(dir, f), 'x')
     const idx = svc.incremental.scanDir(dir)
     assert.deepStrictEqual([...idx.audio.keys()].sort(), ['a', 'b'])
@@ -707,14 +710,14 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'find-'))
+    const base = tmpDir('find-')
     assert.strictEqual(svc.storage.findBatchDir(base, '我的喜欢'), null)
     const made = svc.storage.createBatchDir(base, '我的喜欢', 'playlist')
     assert.strictEqual(svc.storage.findBatchDir(base, '我的喜欢', 'playlist'), made)
     assert.strictEqual(svc.storage.findBatchDir(base, ''), null) // 无名字不匹配时间戳目录
     fs.rmSync(base, { recursive: true, force: true })
     // 榜单批次目录（type=chart）不被歌单增量认领；无标记旧目录向后兼容
-    const base2 = fs.mkdtempSync(path.join(os.tmpdir(), 'find2-'))
+    const base2 = tmpDir('find2-')
     const chartDir = svc.storage.createBatchDir(base2, '同名榜单', 'chart')
     assert.strictEqual(svc.storage.findBatchDir(base2, '同名榜单', 'playlist'), null)
     const legacy = path.join(base2, '旧歌单')
@@ -727,7 +730,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'same-'))
+    const base = tmpDir('same-')
     try {
       // 两个不同歌单同名（网易云"我喜欢的音乐"这类重名极常见）
       const dirA = svc.storage.createBatchDir(base, '我喜欢的音乐', 'playlist', '111')
@@ -746,7 +749,7 @@ async function main() {
       // A 自己再次识别仍应命中原目录（增量复用不被破坏）
       assert.strictEqual(svc.storage.findBatchDir(base, '我喜欢的音乐', 'playlist', '111'), dirA)
       // 带 id 优先命中带 id 的目录；旧的无 id 目录仍能被认领（历史数据不丢）
-      const base2 = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-'))
+      const base2 = tmpDir('legacy-')
       const legacy = svc.storage.createBatchDir(base2, '老歌单', 'playlist')
       assert.strictEqual(svc.storage.findBatchDir(base2, '老歌单', 'playlist', '999'), legacy,
         '标记里没有 ownerId 的旧目录应继续被认领，避免历史下载被重下一遍')
@@ -758,7 +761,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fill-'))
+    const dir = tmpDir('fill-')
     const orig = core.lyric.get
     core.lyric.get = async (id) => {
       if (id === 1) return { lrc: '[00:01.00]词', tlyric: '' }
@@ -783,7 +786,7 @@ async function main() {
     const path = require('path')
     const os = require('os')
     const fs = require('fs')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'run-'))
+    const dir = tmpDir('run-')
     const plan = { download: [{ id: 1, name: '新歌' }], fill: [{ id: 2, name: '缺词' }, { id: 4, name: '无词' }], skipped: [{ id: 3, name: '旧歌' }] }
     const fakeMany = async (list, o) => {
       assert.strictEqual(o.dir, dir)
@@ -925,7 +928,7 @@ async function main() {
     assert.strictEqual(sum.ok + sum.existed + sum.skipped + sum.failed.length, sum.total)
     // 报告文案：existed 为 0 时不占篇幅，非 0 时写进摘要行
     const fs = require('fs'), path = require('path'), os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rep-'))
+    const dir = tmpDir('rep-')
     try {
       svc.storage.writeBatchReport(dir, { label: '歌单: 测试', br: 2000, summary: sum })
       const txt = fs.readFileSync(path.join(dir, svc.storage.REPORT_NAME), 'utf8')
@@ -1045,7 +1048,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'report-'))
+    const dir = tmpDir('report-')
     fs.writeFileSync(path.join(dir, 'a.mp3'), 'x')
     const ok = svc.storage.writeBatchReport(dir, {
       label: '歌单: 测试',
@@ -1118,7 +1121,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dl-'))
+    const dir = tmpDir('dl-')
     const origResolve = core.url.resolve
     const origStream = core.download.streamTo
     const origFetch = core.download.fetchBuffer
@@ -1350,7 +1353,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'trunc-'))
+    const dir = tmpDir('trunc-')
     const origResolve = core.url.resolve
     const origStream = core.download.streamTo
     try {
@@ -1391,7 +1394,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nourl-'))
+    const dir = tmpDir('nourl-')
     const origResolve = core.url.resolve
     try {
       const calls = []
@@ -1450,7 +1453,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-case-'))
+    const dir = tmpDir('scan-case-')
     try {
       for (const f of ['a.MP3', 'a.FLAC', 'b.Flac', 'c.LRC', 'd.lRc', '.mp3']) fs.writeFileSync(path.join(dir, f), 'x')
       const idx = svc.storage.scanDir(dir)
@@ -1497,7 +1500,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rep-old-'))
+    const dir = tmpDir('rep-old-')
     try {
       // existed 缺失：视为 0，不占篇幅但报告照写
       assert.ok(svc.storage.writeBatchReport(dir, {
@@ -1518,8 +1521,8 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'sweep-link-'))
-    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'sweep-out-'))
+    const base = tmpDir('sweep-link-')
+    const outside = tmpDir('sweep-out-')
     try {
       fs.writeFileSync(path.join(outside, 'evil.part'), 'x')
       fs.writeFileSync(path.join(base, 'top.part'), 'x')
@@ -1542,7 +1545,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lru-'))
+    const dir = tmpDir('lru-')
     const origResolve = core.url.resolve
     const origStream = core.download.streamTo
     const origFetch = core.download.fetchBuffer
@@ -1578,7 +1581,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'badcover-'))
+    const dir = tmpDir('badcover-')
     const origResolve = core.url.resolve
     const origStream = core.download.streamTo
     const origFetch = core.download.fetchBuffer
@@ -1611,7 +1614,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pureids-'))
+    const dir = tmpDir('pureids-')
     const origGetOne = core.song.getOne
     const origResolve = core.url.resolve
     const origStream = core.download.streamTo
@@ -1646,7 +1649,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'noscans-'))
+    const dir = tmpDir('noscans-')
     const origResolve = core.url.resolve
     const origStream = core.download.streamTo
     const origScan = svc.storage.scanDir
@@ -1681,7 +1684,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cb-'))
+    const dir = tmpDir('cb-')
     const origResolve = core.url.resolve
     const origStream = core.download.streamTo
     const origFetch = core.download.fetchBuffer
@@ -2083,7 +2086,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ncmidx-'))
+    const dir = tmpDir('ncmidx-')
     const file = path.join(dir, svc.storage.INDEX_NAME)
     try {
       // 无文件 → 空 Map（首次认领旧目录：本轮退回名字匹配，跑完回填）
@@ -2191,7 +2194,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'backfill-'))
+    const dir = tmpDir('backfill-')
     try {
       // 旧目录：只有产物、没有索引文件（引入前的历史批次）
       fs.writeFileSync(path.join(dir, '旧歌.mp3'), Buffer.alloc(8))
@@ -2221,7 +2224,7 @@ async function main() {
     const fs = require('fs')
     const path = require('path')
     const os = require('os')
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'idxwrite-'))
+    const dir = tmpDir('idxwrite-')
     const origResolve = core.url.resolve
     const origStream = core.download.streamTo
     core.url.resolve = async (id) => {
@@ -2278,7 +2281,7 @@ async function main() {
   })
 
   await t('tag: buffer 级内嵌（embedMp3Buf/embedFlacBuf）与文件版产物逐字节一致', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tagbuf-'))
+    const dir = tmpDir('tagbuf-')
     const png = Buffer.concat([
       Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
       Buffer.from([0, 0, 0, 13]), Buffer.from('IHDR'),
@@ -2314,13 +2317,13 @@ async function main() {
   })
 
   await t('dest: 配置增删/激活/持久化/失效回退（临时文件，不碰真实 destinations.json）', () => {
-    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'desttest-')), 'destinations.json')
+    const file = path.join(tmpDir('desttest-'), 'destinations.json')
     svc.dest._useFile(file)
     try {
       assert.strictEqual(svc.dest.activeId(), null)
       assert.strictEqual(svc.dest.list().length, 0)
       assert.strictEqual(svc.dest.resolve('X:\\default').kind, 'default')
-      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dest-dir-'))
+      const dir = tmpDir('dest-dir-')
       const d = svc.dest.addLocal(dir)
       assert.ok(d.id && d.kind === 'local')
       assert.strictEqual(svc.dest.activeId(), d.id)
@@ -2689,7 +2692,7 @@ async function main() {
   })
 
   await t('dest: addPhone 全链路（stub adb）——路径归一/探测先行/持久化/不可用拒绝', () => {
-    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'destphone-')), 'destinations.json')
+    const file = path.join(tmpDir('destphone-'), 'destinations.json')
     const origStatus = svc.adb.status
     const origProbe = svc.adb.probeWritable
     const probed = []
@@ -2728,7 +2731,7 @@ async function main() {
 
   await t('server: open-folder 目的地契约——缺省跟随激活目的地 / dest=default 显式回缺省 / phone 400', async () => {
     const serverMod = require('../server')
-    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'destopen-')), 'destinations.json')
+    const file = path.join(tmpDir('destopen-'), 'destinations.json')
     const origStatus = svc.adb.status
     const origProbe = svc.adb.probeWritable
     svc.dest._useFile(file)
@@ -3212,7 +3215,7 @@ async function main() {
   })
 
   await t('tag: verifyMp3/verifyFlac 对截断输入返回判定对象而不是抛 RangeError', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ncm-tagb-'))
+    const dir = tmpDir('ncm-tagb-')
     try {
       // ID3v2.3 头声称 size=4，实际只有帧 ID（4 字节）——读帧长需要 pos+8，越界
       const mp3 = path.join(dir, 'bad.mp3')
@@ -3243,7 +3246,7 @@ async function main() {
 
   await t('download: 歌词走原子替换（.part + rename），不留半截 .lrc', async () => {
     const origLyric = core.lyric.get
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ncm-lrc-'))
+    const dir = tmpDir('ncm-lrc-')
     try {
       core.lyric.get = async () => ({ lrc: '[00:01.00]第一行\n[00:02.00]第二行', tlyric: '' })
       const target = path.join(dir, '歌.lrc')
@@ -3278,7 +3281,7 @@ async function main() {
   })
 
   await t('storage: 批次标记不可读/格式非法时不再认领（防跨来源误跳）', () => {
-    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'ncm-mk-'))
+    const base = tmpDir('ncm-mk-')
     try {
       const dir = svc.storage.createBatchDir(base, '同名歌单', 'playlist', '7')
       // 标记被外部写坏（截断 JSON）：旧口径当"旧版本产物"认领，
@@ -3295,7 +3298,7 @@ async function main() {
   })
 
   await t('storage: 索引里的基础名也要过清洗（索引是唯一"被读取"的命名输入）', () => {
-    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'ncm-idx-'))
+    const base = tmpDir('ncm-idx-')
     try {
       const dir = svc.storage.createBatchDir(base, 'B', 'playlist', '1')
       fs.writeFileSync(path.join(dir, '.ncm-index.json'), JSON.stringify({ 1: 'nul', 2: 'a/b', 3: '正常歌名', 4: '' }))
@@ -3308,7 +3311,7 @@ async function main() {
   })
 
   await t('storage: mergeIndexFile 临时名唯一（同目录并发写不互抢）', () => {
-    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'ncm-idx2-'))
+    const base = tmpDir('ncm-idx2-')
     try {
       const dir = svc.storage.createBatchDir(base, 'B', 'playlist', '1')
       svc.storage.mergeIndexFile(dir, [['1', 'a']])
@@ -3324,7 +3327,7 @@ async function main() {
   await t('job: 取消与失败同样落批次报告与汇总（半途而废也可事后核对）', async () => {
     const origMany = svc.download.downloadMany
     const origWrite = svc.storage.writeBatchReport
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ncm-cancel-'))
+    const dir = tmpDir('ncm-cancel-')
     try {
       // 队列是全局串行的：先确保上一批已排空，否则本任务的等待会被别人的任务吃掉
       await until(() => !svc.job.jobQueue.active && svc.job.jobQueue.pending === 0, 8000)
@@ -4169,7 +4172,7 @@ async function main() {
       assert.strictEqual(after.length, 1, '外部改动后应读到新内容')
       assert.strictEqual(after[0].id, 'd5', `读到的应是外部写入的条目，实际 ${after.map((d) => d.id).join(',')}`)
       // next 校对：maxId=5 → 下次新增必须拿到不冲突的 id
-      svc.dest.addLocal(fs.mkdtempSync(path.join(os.tmpdir(), 'ncm-dest2-')))
+      svc.dest.addLocal(tmpDir('ncm-dest2-'))
       const ids = svc.dest.list().map((d) => d.id)
       assert.strictEqual(new Set(ids).size, ids.length, `id 不得重复: ${ids.join(',')}`)
     } finally { svc.dest._useFile(path.join(TEST_DOWNLOAD_DIR, 'destinations.json')) }

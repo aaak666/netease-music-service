@@ -609,15 +609,12 @@ if (require.main === module) {
   })
 }
 
-// 导出面收敛到外部真正需要的：stop.js 用 PORT/findListenerPid/stopOldService（实现已下沉
-// service/instance，此处再导出保住旧引用），测试用 app；
+// 导出面收敛到外部真正需要的：测试用 app；
 // _test 只暴露纯本地可测的小函数（404 映射/出参净化/参数校验），不含任何 IO，单测可直调；
-// _internals.jobs 必须是 service/job 里那份共享 Map 实例（测试直接注假任务/清场恢复）
+// _internals.jobs 必须是 service/job 里那份共享 Map 实例（测试直接注假任务/清场恢复）。
+// PORT/SELF_BASE 与 instance 三原语仅内部使用——stop.js 直接走 svc.instance，不经本模块
 module.exports = {
-  app, PORT, SELF_BASE,
-  stopOldService: svc.instance.stopOldService,
-  findListenerPid: svc.instance.findListenerPid,
-  isOurs: svc.instance.isOurs,
+  app,
   _test: { isNotFoundErr, httpStatus, toPublicJob: svc.job.toPublicJob, slimJob: svc.job.slimJob, missingId, badCount, flagOn: svc.params.flagOn },
   _internals: { lastOpenByDir, jobs: svc.job.jobs },
 }

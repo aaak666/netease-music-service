@@ -81,5 +81,4 @@ module.exports = {
   log: (tag, msg) => write('info', tag, msg),
   error: (tag, msg) => write('error', tag, msg),
   _useFile,
-  LOG_FILE,
 }

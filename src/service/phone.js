@@ -492,5 +492,5 @@ function run(plan, opts = {}, cbs = {}) {
 
 module.exports = {
   createBatchDir, findBatchDir, scanDir, readIndexFile, mergeIndexFile, downloadMany, fillLyric, run,
-  pushToDevice, createAdbSink, _tuning: tuning,
+  pushToDevice, _tuning: tuning,
 }
